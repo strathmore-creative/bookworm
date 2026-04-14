@@ -33,7 +33,7 @@ if submit and name and description:
             # Generate the Image using Gemini
             prompt = f"A professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
             response = client.models.generate_content(
-                model="gemini-1.5-flash-8b", # Updated for 2026 stability
+                model="gemini-1.5-flash", # Updated for 2026 stability
                 contents=[prompt],
                 config=types.GenerateContentConfig(response_modalities=["IMAGE"])
             )
