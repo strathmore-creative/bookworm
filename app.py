@@ -1,71 +1,81 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import requests
 from pyairtable import Api
 
 # 1. SETUP & CONFIGURATION
-st.set_page_config(page_title="Bookworm", page_icon="📖")
-st.title("📖 Bookworm")
-st.subheader("Character Keeper")
+st.set_page_config(page_title="Bookworm", page_icon="📖", layout="wide")
+st.title("📖 Bookworm Character Curator")
 
-GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-AIRTABLE_PAT = st.secrets["AIRTABLE_PAT"]
-AIRTABLE_BASE_ID = st.secrets["AIRTABLE_BASE_ID"]
-TABLE_NAME = "Characters"
+# Load Secrets
+try:
+    PIXABAY_API_KEY = st.secrets["PIXABAY_API_KEY"]
+    AIRTABLE_PAT = st.secrets["AIRTABLE_PAT"]
+    AIRTABLE_BASE_ID = st.secrets["AIRTABLE_BASE_ID"]
+    TABLE_NAME = "Characters"
+    
+    # Initialize Airtable
+    airtable = Api(AIRTABLE_PAT).table(AIRTABLE_BASE_ID, TABLE_NAME)
+except Exception as e:
+    st.error("Missing Secrets! Check your Streamlit Cloud settings.")
+    st.stop()
 
-# Initialize Clients
-client = genai.Client(api_key=GEMINI_API_KEY)
-airtable = Api(AIRTABLE_PAT).table(AIRTABLE_BASE_ID, TABLE_NAME)
+# 2. THE SIDEBAR (Input Section)
+with st.sidebar:
+    st.header("1. Character Details")
+    name = st.text_input("Character Name", placeholder="e.g., Rupert")
+    description = st.text_area("Physical Traits", placeholder="e.g., man in his 30s, realistic portrait, cinematic lighting")
+    search_btn = st.button("Find Portraits")
 
-# 2. THE INTERFACE
-with st.form("character_form"):
-    name = st.text_input("Character Name")
-    description = st.text_area("Description (Physical traits, clothing, vibe...)")
-    submit = st.form_submit_button("Bring to Life")
-
-# 3. THE LOGIC
-if submit and name and description:
-    with st.spinner(f"Visualizing {name}..."):
-        try:
-            prompt = f"Create a professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
-            
-            response = client.models.generate_content(
-                model="gemini-2.5-flash-image",
-                contents=prompt,
-                config=types.GenerateContentConfig(response_modalities=["IMAGE"])
-            )
-            
-            for part in response.parts:
-                if part.inline_data:
-                    st.image(part.as_image(), caption=f"Generated Image for {name}")
-            
-            airtable.create({"Name": name, "Description": description})
-            st.success(f"{name} has been added to your Bookworm database!")
-            
-        except Exception as e:
-            if "429" in str(e):
-                st.error("Daily Image Limit Reached! Google's free tier only allows a few images per day. Please try again tomorrow or upgrade to 'Tier 1' in Google AI Studio.")
-            else:
-                st.error(f"Generation error: {e}")
+# 3. THE MAIN GALLERY (Selection Section)
+if search_btn and description:
+    # Build the Pixabay Search URL
+    # We add 'photo' and 'en' to ensure we get realistic English-tagged results
+    pixabay_url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q={description}&image_type=photo&per_page=4"
+    
+    with st.spinner("Searching Pixabay..."):
+        response = requests.get(pixabay_url).json()
+        
+    if response.get('hits'):
+        st.write(f"### Select a Portrait for **{name}**")
+        cols = st.columns(4) # Create a 4-column layout
+        
+        for i, hit in enumerate(response['hits']):
+            with cols[i]:
+                img_url = hit['webformatURL']
+                st.image(img_url, use_container_width=True)
                 
-# 4. SHOW RECENT CHARACTERS
+                # Each button has a unique 'key' so Streamlit doesn't get confused
+                if st.button(f"Save Option {i+1}", key=f"save_{i}"):
+                    try:
+                        # We send Name, Description, and the URL to Airtable
+                        airtable.create({
+                            "Name": name,
+                            "Description": description,
+                            "Portrait": [{"url": img_url}]
+                        })
+                        st.balloons()
+                        st.success(f"Successfully saved {name} to Airtable!")
+                    except Exception as err:
+                        st.error(f"Airtable Error: {err}")
+    else:
+        st.warning("No photos found. Try broader keywords like 'man' or 'woman' or 'face'.")
+
+# 4. THE LIBRARY (View Section)
 st.divider()
 st.write("### Your Library")
 try:
     records = airtable.all()
     if not records:
-        st.info("Your library is empty. Add your first character above!")
+        st.info("Your library is empty. Start by searching in the sidebar!")
     else:
         for rec in records:
-            cols = st.columns([1, 3])
-            with cols[0]:
-                # Check if there is an image URL in Airtable (if you've added one manually)
-                if "Portrait" in rec["fields"]:
-                    st.image(rec["fields"]["Portrait"][0]["url"])
-                else:
-                    st.write("🖼️") # Placeholder if no image yet
-            with cols[1]:
-                st.write(f"**{rec['fields'].get('Name', 'Unknown')}**")
-                st.write(rec["fields"].get("Description", ""))
-except Exception as e:
-    st.warning("Could not load library from Airtable. Check your Table Name.")
+            fields = rec['fields']
+            c1, c2 = st.columns([1, 4])
+            with c1:
+                if "Portrait" in fields:
+                    st.image(fields["Portrait"][0]["url"], width=150)
+            with c2:
+                st.write(f"#### {fields.get('Name', 'Unnamed')}")
+                st.write(fields.get('Description', 'No description provided.'))
+except Exception:
+    pass
