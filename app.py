@@ -26,39 +26,40 @@ with st.sidebar:
     description = st.text_area("Physical Traits", placeholder="e.g., man in his 30s, realistic portrait, cinematic lighting")
     search_btn = st.button("Find Portraits")
 
-# 3. THE MAIN GALLERY (Selection Section)
+# 3. THE SEARCH LOGIC
 if search_btn and description:
-    # Build the Pixabay Search URL
-    # We add 'photo' and 'en' to ensure we get realistic English-tagged results
-    pixabay_url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q={description}&image_type=photo&per_page=4"
+    # 1. CLEAN THE QUERY: We take only the first few words and replace spaces with plus signs
+    # This helps Pixabay's engine not get 'confused' by long sentences
+    clean_query = "+".join(description.split()[:5]) 
     
-    with st.spinner("Searching Pixabay..."):
-        response = requests.get(pixabay_url).json()
-        
-    if response.get('hits'):
-        st.write(f"### Select a Portrait for **{name}**")
-        cols = st.columns(4) # Create a 4-column layout
-        
-        for i, hit in enumerate(response['hits']):
-            with cols[i]:
-                img_url = hit['webformatURL']
-                st.image(img_url, use_container_width=True)
+    # 2. THE TARGETED SEARCH: We add 'portrait' and 'face' to force it to look for people
+    pixabay_url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q={clean_query}+portrait+face&image_type=photo&per_page=4&safesearch=true"
+    
+    with st.spinner("Searching for portraits..."):
+        try:
+            response = requests.get(pixabay_url).json()
+            
+            if response.get('hits'):
+                st.write(f"### Select a Portrait for **{name}**")
+                cols = st.columns(4)
                 
-                # Each button has a unique 'key' so Streamlit doesn't get confused
-                if st.button(f"Save Option {i+1}", key=f"save_{i}"):
-                    try:
-                        # We send Name, Description, and the URL to Airtable
-                        airtable.create({
-                            "Name": name,
-                            "Description": description,
-                            "Portrait": [{"url": img_url}]
-                        })
-                        st.balloons()
-                        st.success(f"Successfully saved {name} to Airtable!")
-                    except Exception as err:
-                        st.error(f"Airtable Error: {err}")
-    else:
-        st.warning("No photos found. Try broader keywords like 'man' or 'woman' or 'face'.")
+                for i, hit in enumerate(response['hits']):
+                    with cols[i]:
+                        # Using 'largeImageURL' for better quality
+                        img_url = hit['webformatURL']
+                        st.image(img_url, use_container_width=True)
+                        
+                        if st.button(f"Save Option {i+1}", key=f"save_{i}"):
+                            airtable.create({
+                                "Name": name,
+                                "Description": description,
+                                "Portrait": [{"url": img_url}]
+                            })
+                            st.success(f"Saved {name}!")
+            else:
+                st.warning("No photos found. Try simpler tags like 'blonde man' or 'man portrait'.")
+        except Exception as e:
+            st.error(f"Search failed: {e}")
 
 # 4. THE LIBRARY (View Section)
 st.divider()
