@@ -27,21 +27,21 @@ with st.form("character_form"):
 if submit and name and description:
     with st.spinner(f"Visualizing {name}..."):
         try:
-            # High-compatibility image generation call
+            # Use the dedicated Image Generation tool
             prompt = f"A professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
             
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"]
+            # This call uses the specialized Imagen 3 model
+            response = client.models.generate_image(
+                model="imagen-3.0-generate-001",
+                prompt=prompt,
+                config=types.GenerateImageConfig(
+                    number_of_images=1
                 )
             )
             
-            # Extract and display the image
-            for part in response.parts:
-                if part.inline_data:
-                    st.image(part.as_image(), caption=f"Generated Image for {name}")
+            # Display the generated image
+            image_bytes = response.generated_images[0].image_bytes
+            st.image(image_bytes, caption=f"Generated Image for {name}")
             
             # Save to Airtable
             airtable.create({
@@ -51,7 +51,14 @@ if submit and name and description:
             st.success(f"{name} has been added to your Bookworm database!")
             
         except Exception as e:
-            st.error(f"Something went wrong during generation: {e}")
+            # If the tool is missing, try the alternative "images" route
+            try:
+                response = client.images.generate(model="imagen-3.0-generate-001", prompt=prompt)
+                st.image(response.generated_images[0].image_bytes, caption=f"Generated Image for {name}")
+                airtable.create({"Name": name, "Description": description})
+                st.success(f"{name} has been added to your database!")
+            except Exception as e2:
+                st.error(f"Image generation is currently unavailable: {e2}")
 
 # 4. SHOW RECENT CHARACTERS
 st.divider()
