@@ -60,7 +60,7 @@ if submit and name and description:
 # 4. SHOW RECENT CHARACTERS
 st.divider()
 st.write("### Your Library")
-records = airtable.all(sort=["Created Time"])
+records = airtable.all()
 for rec in records:
     cols = st.columns([1, 3])
     with cols[0]:
