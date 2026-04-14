@@ -27,18 +27,21 @@ with st.form("character_form"):
 if submit and name and description:
     with st.spinner(f"Visualizing {name}..."):
         try:
-            # Using the stable 2026 image generation method
+            # High-compatibility image generation call
             prompt = f"A professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
             
-            # Alternative call for maximum compatibility
-            response = client.images.generate(
-                model="imagen-3.0-generate-001",
-                prompt=prompt
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"]
+                )
             )
             
             # Extract and display the image
-            image_bytes = response.generated_images[0].image_bytes
-            st.image(image_bytes, caption=f"Generated Image for {name}")
+            for part in response.parts:
+                if part.inline_data:
+                    st.image(part.as_image(), caption=f"Generated Image for {name}")
             
             # Save to Airtable
             airtable.create({
@@ -46,19 +49,28 @@ if submit and name and description:
                 "Description": description
             })
             st.success(f"{name} has been added to your Bookworm database!")
+            
+        except Exception as e:
+            st.error(f"Something went wrong during generation: {e}")
 
 # 4. SHOW RECENT CHARACTERS
 st.divider()
 st.write("### Your Library")
 try:
     records = airtable.all()
-    for rec in records:
-        cols = st.columns([1, 3])
-        with cols[0]:
-            if "Portrait" in rec["fields"]:
-                st.image(rec["fields"]["Portrait"][0]["url"])
-        with cols[1]:
-            st.write(f"**{rec['fields'].get('Name', 'Unknown')}**")
-            st.write(rec["fields"].get("Description", ""))
-except Exception:
-    st.info("Your library is empty. Add your first character above!")
+    if not records:
+        st.info("Your library is empty. Add your first character above!")
+    else:
+        for rec in records:
+            cols = st.columns([1, 3])
+            with cols[0]:
+                # Check if there is an image URL in Airtable (if you've added one manually)
+                if "Portrait" in rec["fields"]:
+                    st.image(rec["fields"]["Portrait"][0]["url"])
+                else:
+                    st.write("🖼️") # Placeholder if no image yet
+            with cols[1]:
+                st.write(f"**{rec['fields'].get('Name', 'Unknown')}**")
+                st.write(rec["fields"].get("Description", ""))
+except Exception as e:
+    st.warning("Could not load library from Airtable. Check your Table Name.")
