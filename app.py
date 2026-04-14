@@ -27,23 +27,24 @@ with st.form("character_form"):
 if submit and name and description:
     with st.spinner(f"Visualizing {name}..."):
         try:
-            # Use the dedicated Image Generation tool
+            # The most compatible way to call Imagen 3.0 in 2026
             prompt = f"A professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
             
-            # This call uses the specialized Imagen 3 model
-            response = client.models.generate_image(
-                model="imagen-3.0-generate-001",
-                prompt=prompt,
-                config=types.GenerateImageConfig(
-                    number_of_images=1
+            # We call the model specifically as an image generator
+            response = client.models.generate_content(
+                model='imagen-3.0-generate-001',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=['IMAGE']
                 )
             )
             
-            # Display the generated image
-            image_bytes = response.generated_images[0].image_bytes
-            st.image(image_bytes, caption=f"Generated Image for {name}")
+            # Find and display the image part of the response
+            for part in response.parts:
+                if part.inline_data:
+                    st.image(part.as_image(), caption=f"Generated Image for {name}")
             
-            # Save to Airtable
+            # Save the record to Airtable
             airtable.create({
                 "Name": name,
                 "Description": description
@@ -51,14 +52,7 @@ if submit and name and description:
             st.success(f"{name} has been added to your Bookworm database!")
             
         except Exception as e:
-            # If the tool is missing, try the alternative "images" route
-            try:
-                response = client.images.generate(model="imagen-3.0-generate-001", prompt=prompt)
-                st.image(response.generated_images[0].image_bytes, caption=f"Generated Image for {name}")
-                airtable.create({"Name": name, "Description": description})
-                st.success(f"{name} has been added to your database!")
-            except Exception as e2:
-                st.error(f"Image generation is currently unavailable: {e2}")
+            st.error(f"Generation error: {e}")
 
 # 4. SHOW RECENT CHARACTERS
 st.divider()
