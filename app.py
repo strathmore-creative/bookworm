@@ -30,32 +30,28 @@ with st.form("character_form"):
 if submit and name and description:
     with st.spinner(f"Visualizing {name}..."):
         try:
-            # Generate the Image using Gemini
+            # Using the dedicated Imagen model for 2026 stability
             prompt = f"A professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
-            response = client.models.generate_content(
-                model="gemini-1.5-flash", # Updated for 2026 stability
-                contents=[prompt],
-                config=types.GenerateContentConfig(response_modalities=["IMAGE"])
+            
+            response = client.models.generate_image(
+                model="imagen-3.0-generate-001",
+                prompt=prompt,
+                config=types.GenerateImageConfig(
+                    number_of_images=1,
+                    include_rai_reasoning=True
+                )
             )
             
-            # Extract Image
-            for part in response.parts:
-                if part.inline_data is not None:
-                    image_bytes = part.as_image()
-                    st.image(image_bytes, caption=f"Generated Image for {name}")
-                    
-                    # Save to Airtable
-                    # Note: Airtable requires a public URL for attachments via API.
-                    # For this simple version, we'll save the text and you can 
-                    # drag the image in, OR we can use a temporary hosting service.
-                    airtable.create({
-                        "Name": name,
-                        "Description": description
-                    })
-                    st.success(f"{name} has been added to your Bookworm database!")
-                    
-        except Exception as e:
-            st.error(f"Something went wrong: {e}")
+            # Extract and display the image
+            image_bytes = response.generated_images[0].image_bytes
+            st.image(image_bytes, caption=f"Generated Image for {name}")
+            
+            # Save to Airtable
+            airtable.create({
+                "Name": name,
+                "Description": description
+            })
+            st.success(f"{name} has been added to your Bookworm database!")
 
 # 4. SHOW RECENT CHARACTERS
 st.divider()
