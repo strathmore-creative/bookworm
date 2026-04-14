@@ -27,33 +27,27 @@ with st.form("character_form"):
 if submit and name and description:
     with st.spinner(f"Visualizing {name}..."):
         try:
-            # The official 2026 stable multimodal model
             prompt = f"Create a professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
             
-            # Using the unified generate_content method
             response = client.models.generate_content(
                 model="gemini-2.5-flash-image",
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"]
-                )
+                config=types.GenerateContentConfig(response_modalities=["IMAGE"])
             )
             
-            # Extract the image from the response parts
             for part in response.parts:
                 if part.inline_data:
-                    # Convert raw data to image and display
                     st.image(part.as_image(), caption=f"Generated Image for {name}")
             
-            # Save the text record to Airtable
-            airtable.create({
-                "Name": name,
-                "Description": description
-            })
+            airtable.create({"Name": name, "Description": description})
             st.success(f"{name} has been added to your Bookworm database!")
             
         except Exception as e:
-            st.error(f"Generation error: {e}")
+            if "429" in str(e):
+                st.error("Daily Image Limit Reached! Google's free tier only allows a few images per day. Please try again tomorrow or upgrade to 'Tier 1' in Google AI Studio.")
+            else:
+                st.error(f"Generation error: {e}")
+                
 # 4. SHOW RECENT CHARACTERS
 st.divider()
 st.write("### Your Library")
