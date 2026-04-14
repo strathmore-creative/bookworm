@@ -27,16 +27,13 @@ with st.form("character_form"):
 if submit and name and description:
     with st.spinner(f"Visualizing {name}..."):
         try:
-            # Using Imagen 3.0 for the highest stability in 2026
+            # Using the stable 2026 image generation method
             prompt = f"A professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
             
-            response = client.models.generate_image(
+            # Alternative call for maximum compatibility
+            response = client.images.generate(
                 model="imagen-3.0-generate-001",
-                prompt=prompt,
-                config=types.GenerateImageConfig(
-                    number_of_images=1,
-                    include_rai_reasoning=True
-                )
+                prompt=prompt
             )
             
             # Extract and display the image
@@ -49,9 +46,6 @@ if submit and name and description:
                 "Description": description
             })
             st.success(f"{name} has been added to your Bookworm database!")
-            
-        except Exception as e:
-            st.error(f"Something went wrong: {e}")
 
 # 4. SHOW RECENT CHARACTERS
 st.divider()
