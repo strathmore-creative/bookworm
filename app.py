@@ -2,15 +2,12 @@ import streamlit as st
 from google import genai
 from google.genai import types
 from pyairtable import Api
-import requests
-from io import BytesIO
 
 # 1. SETUP & CONFIGURATION
 st.set_page_config(page_title="Bookworm", page_icon="📖")
 st.title("📖 Bookworm")
 st.subheader("Character Keeper")
 
-# These will be set up in the "Secrets" section of the web host later
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 AIRTABLE_PAT = st.secrets["AIRTABLE_PAT"]
 AIRTABLE_BASE_ID = st.secrets["AIRTABLE_BASE_ID"]
@@ -30,7 +27,7 @@ with st.form("character_form"):
 if submit and name and description:
     with st.spinner(f"Visualizing {name}..."):
         try:
-            # Using the dedicated Imagen model for 2026 stability
+            # Using Imagen 3.0 for the highest stability in 2026
             prompt = f"A professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
             
             response = client.models.generate_image(
@@ -52,16 +49,22 @@ if submit and name and description:
                 "Description": description
             })
             st.success(f"{name} has been added to your Bookworm database!")
+            
+        except Exception as e:
+            st.error(f"Something went wrong: {e}")
 
 # 4. SHOW RECENT CHARACTERS
 st.divider()
 st.write("### Your Library")
-records = airtable.all()
-for rec in records:
-    cols = st.columns([1, 3])
-    with cols[0]:
-        if "Portrait" in rec["fields"]:
-            st.image(rec["fields"]["Portrait"][0]["url"])
-    with cols[1]:
-        st.write(f"**{rec['fields'].get('Name', 'Unknown')}**")
-        st.write(rec["fields"].get("Description", ""))
+try:
+    records = airtable.all()
+    for rec in records:
+        cols = st.columns([1, 3])
+        with cols[0]:
+            if "Portrait" in rec["fields"]:
+                st.image(rec["fields"]["Portrait"][0]["url"])
+        with cols[1]:
+            st.write(f"**{rec['fields'].get('Name', 'Unknown')}**")
+            st.write(rec["fields"].get("Description", ""))
+except Exception:
+    st.info("Your library is empty. Add your first character above!")
