@@ -27,22 +27,18 @@ with st.form("character_form"):
 if submit and name and description:
     with st.spinner(f"Visualizing {name}..."):
         try:
-            # The most compatible way to call Imagen 3.0 in 2026
+            # Using the stable 2026 model name
             prompt = f"A professional character portrait of {name}: {description}. High detail, cinematic lighting, book illustration style."
             
-            # We call the model specifically as an image generator
-            response = client.models.generate_content(
-                model='imagen-3.0-generate-001',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=['IMAGE']
-                )
+            # The most direct way to call the image engine
+            response = client.models.generate_image(
+                model="imagen-3.0-alpha-001", 
+                prompt=prompt
             )
             
-            # Find and display the image part of the response
-            for part in response.parts:
-                if part.inline_data:
-                    st.image(part.as_image(), caption=f"Generated Image for {name}")
+            # Extract and display the image
+            image_bytes = response.generated_images[0].image_bytes
+            st.image(image_bytes, caption=f"Generated Image for {name}")
             
             # Save the record to Airtable
             airtable.create({
@@ -52,7 +48,17 @@ if submit and name and description:
             st.success(f"{name} has been added to your Bookworm database!")
             
         except Exception as e:
-            st.error(f"Generation error: {e}")
+            # Fallback if the specific model version is slightly different
+            try:
+                response = client.models.generate_image(
+                    model="imagen-3.0-generate-001",
+                    prompt=prompt
+                )
+                st.image(response.generated_images[0].image_bytes, caption=f"Generated Image for {name}")
+                airtable.create({"Name": name, "Description": description})
+                st.success(f"{name} has been added to your database!")
+            except Exception as final_e:
+                st.error(f"Final connection attempt failed: {final_e}")
 
 # 4. SHOW RECENT CHARACTERS
 st.divider()
